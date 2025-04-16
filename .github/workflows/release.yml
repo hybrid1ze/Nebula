@@ -1,11 +1,11 @@
 name: Release Nebula
 
-    on:
-      push:
-        tags:
-          - 'v*' # Trigger on tags like v1.0.0, v1.1.0-beta
+on: # Top-level key, no indentation
+  push: # Indented under 'on'
+    tags: # Indented under 'push'
+      - 'v*' # Trigger on tags like v1.0.0, v1.1.0-beta
 
-    jobs:
+jobs: # Top-level key, no indentation
       build-and-release:
         name: Build & Release for ${{ matrix.os }}
         runs-on: ${{ matrix.os }} # Use runners for different OS
