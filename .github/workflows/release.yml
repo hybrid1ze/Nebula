@@ -44,9 +44,13 @@ jobs: # Top-level key, no indentation
             id: artifacts
             shell: bash
             run: |
-              # Find the installer/package in the dist directory
-              # This assumes electron-builder outputs standard file types
-              ARTIFACT_PATH=$(ls dist/*.@(exe|dmg|AppImage|deb) | head -n 1)
+              # Find the first installer/package in the dist directory using find and grep
+              # This is more portable than extglob ls
+              ARTIFACT_PATH=$(find dist/ -maxdepth 1 -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) | head -n 1)
+              if [ -z "$ARTIFACT_PATH" ]; then
+                echo "Error: No build artifact found in dist/ directory."
+                exit 1
+              fi
               ARTIFACT_NAME=$(basename "$ARTIFACT_PATH")
               echo "ARTIFACT_PATH=${ARTIFACT_PATH}" >> $GITHUB_OUTPUT
               echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
