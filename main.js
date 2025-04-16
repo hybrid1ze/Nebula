@@ -3,7 +3,7 @@ const path = require('path');
 const store = require('electron-store');
 const { AuthService } = require('./auth-service');
 const { AuthLaunchService } = require('./auth-launch-service');
-const { getRiotClientPath, closeRiotProcesses, isValorantRunning } = require('./auth-launch-service'); // Import helper functions
+const { getRiotClientPath, closeRiotProcesses, isValorantRunning } = require('./auth-launch-service');
 
 const appStore = new store();
 const authService = new AuthService(appStore);
@@ -21,13 +21,12 @@ function createWindow() {
             contextIsolation: true,
             nodeIntegration: false,
         },
-        icon: path.join(__dirname, 'assets/icon.png') // Ensure you have an icon file
+        icon: path.join(__dirname, 'assets/icon.png')
     });
 
     mainWindow.loadFile(path.join(__dirname, 'renderer/index.html'));
 
-    // Open DevTools (optional)
-    // mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // Keep commented out unless needed for debugging
 
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -50,8 +49,6 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
-
-// --- IPC Handlers ---
 
 ipcMain.handle('get-accounts', async () => {
     return authService.getAccounts();
@@ -95,23 +92,29 @@ ipcMain.handle('remove-account', async (event, accountId) => {
 ipcMain.handle('launch-valorant', async (event, accountId) => {
     mainWindow.webContents.send('update-launch-status', accountId, 'launching');
     try {
-        const account = authService.getAccountById(accountId); // Get full account details
-        if (!account || !account.cookies || !account.cookies.ssid) {
-             mainWindow.webContents.send('update-launch-status', accountId, 'error', 'Account data incomplete or missing SSID.');
-            return { success: false, error: 'Account data incomplete or missing SSID.' };
+        const account = authService.getAccountById(accountId);
+        // Retrieve secure cookies needed for launch service
+        const cookies = await authService.retrieveCookiesSecurely(accountId);
+
+        if (!account || !cookies || !cookies.ssid) {
+             mainWindow.webContents.send('update-launch-status', accountId, 'error', 'Account data or cookies incomplete/missing.');
+            return { success: false, error: 'Account data or cookies incomplete/missing.' };
         }
 
-        const valorantPath = appStore.get('valorantPath');
-        if (!valorantPath || !await getRiotClientPath()) { // Check Riot Client path too
-             mainWindow.webContents.send('update-launch-status', accountId, 'error', 'Riot Client path not set or invalid.');
+        const valorantPath = appStore.get('valorantPath'); // This should be the Riot Games base path
+        const riotClientExists = await getRiotClientPath(); // Verify Riot Client can be found
+
+        if (!valorantPath || !riotClientExists) {
+             mainWindow.webContents.send('update-launch-status', accountId, 'error', 'Riot Client path not set or Riot Client not found.');
             dialog.showErrorBox('Error', 'Riot Client path not set or invalid. Please configure it in settings.');
-            return { success: false, error: 'Riot Client path not set or invalid.' };
+            return { success: false, error: 'Riot Client path not set or Riot Client not found.' };
         }
 
-        await authLaunchService.launchValorant(account);
-        await authService.updateLastUsed(accountId); // Update last used timestamp
+        // Pass the retrieved secure cookies to the launch service
+        await authLaunchService.launchValorant(account, cookies);
+        await authService.updateLastUsed(accountId);
         startValorantWatcher(accountId); // Start watcher after successful launch command
-        // Don't send 'running' status immediately, wait for watcher
+        // 'running' status is sent by the watcher when the process is detected
         return { success: true };
 
     } catch (error) {
@@ -125,7 +128,7 @@ ipcMain.handle('launch-valorant', async (event, accountId) => {
 ipcMain.handle('get-settings', async () => {
     return {
         valorantPath: appStore.get('valorantPath'),
-        theme: appStore.get('theme', 'system') // Default to system theme
+        theme: appStore.get('theme', 'system')
     };
 });
 
@@ -135,8 +138,7 @@ ipcMain.handle('save-settings', async (event, settings) => {
     }
     if (settings.theme) {
         appStore.set('theme', settings.theme);
-        // Optionally apply theme immediately if your UI supports it
-        mainWindow.webContents.send('apply-theme', settings.theme);
+        mainWindow.webContents.send('apply-theme', settings.theme); // Notify renderer to apply theme
     }
     return { success: true };
 });
@@ -147,10 +149,10 @@ ipcMain.handle('select-valorant-path', async () => {
         title: 'Select Riot Games Installation Directory'
     });
     if (!result.canceled && result.filePaths.length > 0) {
-        // Basic check if it looks like a Riot Games folder
-        const potentialPath = await getRiotClientPath(result.filePaths[0]);
-        if (potentialPath) {
-             appStore.set('valorantPath', result.filePaths[0]); // Store the selected base directory
+        // Verify that a Riot Client executable can be found relative to the selected path
+        const riotClientPath = await getRiotClientPath(result.filePaths[0]);
+        if (riotClientPath) {
+             appStore.set('valorantPath', result.filePaths[0]); // Store the selected base directory containing Riot Client
              return { success: true, path: result.filePaths[0] };
         } else {
             dialog.showErrorBox('Invalid Path', 'Selected directory does not seem to contain a valid Riot Client installation.');
@@ -165,8 +167,7 @@ ipcMain.handle('open-external-link', (event, url) => {
     shell.openExternal(url);
 });
 
-// --- Helper Functions ---
-
+// Watches for Valorant process start and exit to update UI status
 function startValorantWatcher(accountId) {
     stopValorantWatcher(); // Stop any existing watcher
 
@@ -182,14 +183,12 @@ function startValorantWatcher(accountId) {
             } else if (!running && valorantFound) {
                 console.log('Valorant detected as closed.');
                 mainWindow.webContents.send('update-launch-status', accountId, 'closed');
-                stopValorantWatcher(); // Stop checking once closed
-            } else if (!running && !valorantFound) {
-                // Still in the launching phase or launch failed before game started
-                // Keep checking for a bit longer in case it's just slow to start
+                stopValorantWatcher();
             }
+            // If !running and !valorantFound, keep checking as the game might be starting slowly
         } catch (error) {
             console.error('Error checking Valorant process:', error);
-            // Optionally stop watcher on error or handle specific errors
+            // Consider stopping watcher on persistent errors
         }
     }, 5000); // Check every 5 seconds
 }

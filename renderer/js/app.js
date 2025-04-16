@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const appStatus = document.getElementById('app-status');
     const discordLink = document.getElementById('discord-link');
 
-    // Settings Modal Elements
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
     const closeSettingsBtn = document.getElementById('close-settings-btn');
@@ -16,21 +15,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeSelect = document.getElementById('theme-select');
     const settingsStatus = document.getElementById('settings-status');
 
-    let currentTheme = 'system'; // Default theme
+    let currentTheme = 'system';
 
-    // --- Helper Functions ---
     function displayStatusMessage(element, message, type = 'info') {
         element.textContent = message;
-        element.className = `status-message ${type}`; // Reset classes and add type
+        element.className = `status-message ${type}`;
         element.style.display = 'block';
-        // Optionally hide after a few seconds
-        // setTimeout(() => { element.style.display = 'none'; }, 5000);
+        // Consider adding a timeout to auto-hide messages after a delay
     }
 
     function clearStatusMessage(element) {
         element.textContent = '';
         element.style.display = 'none';
-         element.className = 'status-message'; // Reset class
+         element.className = 'status-message';
     }
 
     function formatTimestamp(timestamp) {
@@ -49,15 +46,14 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (theme === 'dark') {
             document.body.classList.add('dark-theme');
         } else {
-            document.body.classList.add('system-theme'); // Default to system
+            document.body.classList.add('system-theme');
         }
         currentTheme = theme;
         console.log(`Theme applied: ${theme}`);
     }
 
-    // --- Account Loading and Rendering ---
     async function loadAccounts() {
-        accountList.innerHTML = '<li class="loading-placeholder">Loading accounts...</li>'; // Show loading state
+        accountList.innerHTML = '<li class="loading-placeholder">Loading accounts...</li>';
         try {
             const accounts = await window.electronAPI.getAccounts();
             renderAccounts(accounts);
@@ -71,13 +67,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderAccounts(accounts) {
-        accountList.innerHTML = ''; // Clear previous list
+        accountList.innerHTML = '';
         if (accounts.length === 0) {
             accountList.innerHTML = '<li class="no-accounts-placeholder">No accounts added yet.</li>';
             return;
         }
 
-        accounts.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)); // Sort by last used
+        accounts.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0)); // Show most recently used first
 
         accounts.forEach(account => {
             const listItem = document.createElement('li');
@@ -101,8 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
             launchBtn.addEventListener('click', handleLaunchClick);
 
             const statusIndicator = document.createElement('span');
-            statusIndicator.className = 'status-indicator'; // Base class
-            statusIndicator.id = `status-${account.id}`; // Unique ID for updates
+            statusIndicator.className = 'status-indicator';
+            statusIndicator.id = `status-${account.id}`; // ID for targeting status updates
 
             const removeBtn = document.createElement('button');
             removeBtn.textContent = 'Remove';
@@ -111,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
             removeBtn.addEventListener('click', handleRemoveClick);
 
             accountActions.appendChild(launchBtn);
-            accountActions.appendChild(statusIndicator); // Add indicator next to launch
+            accountActions.appendChild(statusIndicator);
             accountActions.appendChild(removeBtn);
 
             listItem.appendChild(accountInfo);
@@ -120,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Event Handlers ---
     async function handleAddAccountSubmit(event) {
         event.preventDefault();
         const usernameInput = document.getElementById('username');
@@ -128,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const submitButton = document.getElementById('add-account-submit-btn');
 
         const username = usernameInput.value.trim();
-        const password = passwordInput.value; // Don't trim password
+        const password = passwordInput.value;
 
         if (!username || !password) {
             displayStatusMessage(addAccountStatus, 'Username and password are required.', 'error');
@@ -144,8 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await window.electronAPI.addAccount({ username, password });
             if (result.success) {
                 displayStatusMessage(addAccountStatus, `Account "${result.account.username}" added successfully!`, 'success');
-                addAccountForm.reset(); // Clear form
-                await loadAccounts(); // Refresh list
+                addAccountForm.reset();
+                await loadAccounts();
             } else {
                 displayStatusMessage(addAccountStatus, `Error: ${result.error || 'Failed to add account.'}`, 'error');
             }
@@ -160,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
      async function handleImportAccountClick() {
-        clearStatusMessage(addAccountStatus); // Use the same status area for feedback
+        clearStatusMessage(addAccountStatus);
         importAccountBtn.disabled = true;
         importAccountBtn.textContent = 'Importing...';
         updateAppStatus('Importing account...');
@@ -169,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await window.electronAPI.importCurrentAccount();
             if (result.success) {
                 displayStatusMessage(addAccountStatus, `Account "${result.account.username}" imported/updated successfully!`, 'success');
-                await loadAccounts(); // Refresh list
+                await loadAccounts();
             } else {
                 displayStatusMessage(addAccountStatus, `Error: ${result.error || 'Failed to import account.'}`, 'error');
             }
@@ -187,35 +182,34 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleLaunchClick(event) {
         const button = event.target;
         const accountId = button.dataset.accountId;
-        clearStatusMessage(addAccountStatus); // Clear any previous messages
+        clearStatusMessage(addAccountStatus);
         updateAppStatus(`Launching account ${accountId}...`);
         button.disabled = true;
         button.textContent = 'Launching...';
 
-        // Reset status indicator
-        updateLaunchStatus(accountId, 'launching');
-
+        updateLaunchStatus(accountId, 'launching'); // Set initial visual state
 
         try {
             const result = await window.electronAPI.launchValorant(accountId);
             if (result.success) {
-                // Don't update status here, wait for the watcher update
+                // Launch command sent successfully. Status will update via the watcher.
                 console.log(`Launch command sent for account ${accountId}`);
-                // Button remains disabled until game closes or error occurs
             } else {
+                // Launch command failed immediately (e.g., bad path, missing cookies)
                 updateAppStatus(`Launch failed for ${accountId}.`);
                 displayStatusMessage(addAccountStatus, `Launch Error: ${result.error || 'Unknown error'}`, 'error');
-                button.disabled = false; // Re-enable button on failure
+                button.disabled = false;
                 button.textContent = 'Launch';
-                updateLaunchStatus(accountId, 'error', result.error); // Show error status
+                updateLaunchStatus(accountId, 'error', result.error);
             }
         } catch (error) {
-            console.error('Error launching Valorant:', error);
+            // Catch errors from the IPC call itself
+            console.error('IPC Error launching Valorant:', error);
             updateAppStatus(`Launch failed for ${accountId}.`);
             displayStatusMessage(addAccountStatus, `Launch Error: ${error.message}`, 'error');
-            button.disabled = false; // Re-enable button on failure
+            button.disabled = false;
             button.textContent = 'Launch';
-            updateLaunchStatus(accountId, 'error', error.message); // Show error status
+            updateLaunchStatus(accountId, 'error', error.message);
         }
     }
 
@@ -224,17 +218,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const listItem = event.target.closest('li');
         const accountName = listItem.querySelector('.account-info strong').textContent;
 
-        // Simple confirmation dialog (replace with a nicer modal if desired)
+        // TODO: Replace confirm() with a custom modal for better UX
         if (confirm(`Are you sure you want to remove the account "${accountName}"?`)) {
             clearStatusMessage(addAccountStatus);
             updateAppStatus(`Removing account ${accountId}...`);
             try {
                 const result = await window.electronAPI.removeAccount(accountId);
                 if (result.success) {
-                    listItem.remove(); // Remove from UI immediately
+                    listItem.remove();
                     updateAppStatus(`Account ${accountId} removed.`);
                     displayStatusMessage(addAccountStatus, `Account "${accountName}" removed.`, 'success');
-                     // Check if list is now empty
+                    // If the list becomes empty, show the placeholder
                     if (accountList.children.length === 0) {
                         accountList.innerHTML = '<li class="no-accounts-placeholder">No accounts added yet.</li>';
                     }
@@ -254,10 +248,9 @@ document.addEventListener('DOMContentLoaded', () => {
         appStatus.textContent = message;
     }
 
-    // --- Settings Modal Logic ---
     function openSettingsModal() {
         settingsModal.style.display = 'block';
-        loadSettings(); // Load current settings when opening
+        loadSettings();
         clearStatusMessage(settingsStatus);
     }
 
@@ -270,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const settings = await window.electronAPI.getSettings();
             valorantPathInput.value = settings.valorantPath || '';
             themeSelect.value = settings.theme || 'system';
-            applyTheme(settings.theme || 'system'); // Apply loaded theme
+            applyTheme(settings.theme || 'system');
         } catch (error) {
             console.error("Error loading settings:", error);
             displayStatusMessage(settingsStatus, 'Error loading settings.', 'error');
@@ -290,8 +283,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await window.electronAPI.saveSettings(newSettings);
             if (result.success) {
                 displayStatusMessage(settingsStatus, 'Settings saved successfully!', 'success');
-                applyTheme(newSettings.theme); // Apply the new theme immediately
-                // Optionally close modal on save: closeSettingsModal();
+                applyTheme(newSettings.theme);
+                // Consider closing modal automatically on successful save
+                // closeSettingsModal();
             } else {
                  displayStatusMessage(settingsStatus, 'Failed to save settings.', 'error');
             }
@@ -309,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await window.electronAPI.selectValorantPath();
             if (result.success && result.path) {
                 valorantPathInput.value = result.path;
-                displayStatusMessage(settingsStatus, 'Path selected. Remember to save.', 'info'); // Use info type
+                displayStatusMessage(settingsStatus, 'Path selected. Remember to save.', 'info');
             } else if (result.error) {
                  displayStatusMessage(settingsStatus, result.error, 'error');
             }
@@ -319,15 +313,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- IPC Listeners ---
+    // Updates the UI elements (button text, status dot) for a specific account based on launch status
     function updateLaunchStatus(accountId, status, message = '') {
          const statusIndicator = document.getElementById(`status-${accountId}`);
          const launchButton = document.querySelector(`.launch-btn[data-account-id="${accountId}"]`);
 
          if (!statusIndicator || !launchButton) return;
 
-         // Reset classes
-         statusIndicator.className = 'status-indicator';
+         statusIndicator.className = 'status-indicator'; // Reset classes first
 
          switch (status) {
             case 'launching':
@@ -339,34 +332,34 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'running':
                 statusIndicator.classList.add('status-running');
                 statusIndicator.title = 'Valorant Running';
-                 launchButton.disabled = true; // Keep disabled while running
+                 launchButton.disabled = true;
                  launchButton.textContent = 'Running';
                  updateAppStatus(`Valorant running for account ${accountId}`);
                 break;
             case 'closed':
                 statusIndicator.classList.add('status-closed');
                 statusIndicator.title = 'Valorant Closed';
-                launchButton.disabled = false; // Re-enable button
+                launchButton.disabled = false;
                 launchButton.textContent = 'Launch';
                 updateAppStatus(`Valorant closed for account ${accountId}`);
                 break;
             case 'error':
                 statusIndicator.classList.add('status-error');
                 statusIndicator.title = `Error: ${message}`;
-                launchButton.disabled = false; // Re-enable button on error
+                launchButton.disabled = false;
                 launchButton.textContent = 'Launch';
-                 updateAppStatus(`Launch Error for account ${accountId}`);
+                updateAppStatus(`Launch Error for account ${accountId}`);
                 break;
             default:
                  statusIndicator.title = 'Idle';
                  launchButton.disabled = false;
                  launchButton.textContent = 'Launch';
-                 break; // No specific class for idle/default
-         }
-    }
+                 break; // Default/idle state
+             }
+        }
 
 
-    // --- Initialization ---
+    // --- Event Listener Setup ---
     addAccountForm.addEventListener('submit', handleAddAccountSubmit);
     importAccountBtn.addEventListener('click', handleImportAccountClick);
     settingsBtn.addEventListener('click', openSettingsModal);
@@ -375,29 +368,26 @@ document.addEventListener('DOMContentLoaded', () => {
     selectPathBtn.addEventListener('click', handleSelectPath);
     discordLink.addEventListener('click', (e) => {
         e.preventDefault();
-        window.electronAPI.openExternalLink('https://discord.gg/a9yzrw3KAm'); // Replace with actual link if different
+        window.electronAPI.openExternalLink('https://discord.gg/a9yzrw3KAm'); // Example link
     });
 
+    // Close modal if user clicks outside the modal content area
 
-    // Close modal if clicked outside content
     window.onclick = function(event) {
-        if (event.target == settingsModal) {
+        if (event.target === settingsModal) {
             closeSettingsModal();
         }
     }
 
-    // Listen for status updates from main process
+    // Listen for events pushed from the main process
     window.electronAPI.onUpdateLaunchStatus(updateLaunchStatus);
-
-    // Listen for theme changes from main process (if settings are changed elsewhere)
     window.electronAPI.onApplyTheme(applyTheme);
 
-
-    // Initial Load
+    // --- Initial Load ---
     loadAccounts();
-    loadSettings(); // Load and apply theme on startup
+    loadSettings(); // Also applies initial theme
 
-    // Cleanup listeners on window unload (optional but good practice)
+    // Cleanup IPC listeners when the page unloads to prevent memory leaks
     window.addEventListener('beforeunload', () => {
         window.electronAPI.removeUpdateLaunchStatusListener();
         window.electronAPI.removeApplyThemeListener();
