@@ -5,6 +5,10 @@ on: # Top-level key, no indentation
     tags: # Indented under 'push'
       - 'v*' # Trigger on tags like v1.0.0, v1.1.0-beta
 
+# Permissions needed for the softprops/action-gh-release action to create releases and upload assets
+permissions:
+  contents: write
+
 jobs: # Top-level key, no indentation
       build-and-release:
         name: Build & Release for ${{ matrix.os }}
