@@ -1,0 +1,57 @@
+name: Release Nebula
+
+    on:
+      push:
+        tags:
+          - 'v*' # Trigger on tags like v1.0.0, v1.1.0-beta
+
+    jobs:
+      build-and-release:
+        name: Build & Release for ${{ matrix.os }}
+        runs-on: ${{ matrix.os }} # Use runners for different OS
+
+        strategy:
+          matrix:
+            os: [ubuntu-latest, macos-latest, windows-latest] # Define OS matrix
+
+        steps:
+          - name: Check out Git repository
+            uses: actions/checkout@v4
+
+          - name: Set up Node.js
+            uses: actions/setup-node@v4
+            with:
+              node-version: '20' # Use a specific LTS Node.js version
+              cache: 'npm' # Cache npm dependencies
+
+          - name: Install dependencies
+            # Use npm ci for cleaner installs based on package-lock.json
+            run: npm ci
+
+          - name: Build application
+            # electron-builder automatically builds for the current OS
+            run: npm run build
+            env:
+              # GitHub token is needed by electron-builder for auto-updates/publishing (optional but good practice)
+              # It's automatically provided by GitHub Actions
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          - name: Determine Artifact Name and Path
+            id: artifacts
+            shell: bash
+            run: |
+              # Find the installer/package in the dist directory
+              # This assumes electron-builder outputs standard file types
+              ARTIFACT_PATH=$(ls dist/*.@(exe|dmg|AppImage|deb) | head -n 1)
+              ARTIFACT_NAME=$(basename "$ARTIFACT_PATH")
+              echo "ARTIFACT_PATH=${ARTIFACT_PATH}" >> $GITHUB_OUTPUT
+              echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+              echo "Found artifact: ${ARTIFACT_NAME} at ${ARTIFACT_PATH}"
+
+          - name: Upload Release Asset
+            uses: softprops/action-gh-release@v2 # Creates release and uploads asset
+            if: steps.artifacts.outputs.ARTIFACT_PATH != '' # Only run if artifact was found
+            with:
+              files: ${{ steps.artifacts.outputs.ARTIFACT_PATH }}
+              # GITHUB_TOKEN is implicitly used by the action
+              # The release name and body will be based on the tag
