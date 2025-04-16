@@ -1,0 +1,60 @@
+{
+  "name": "nebula",
+  "version": "1.0.0",
+  "description": "Manage multiple Valorant accounts easily.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "valorant",
+    "account",
+    "manager",
+    "electron"
+  ],
+  "author": "Your Name/AI",
+  "license": "MIT",
+  "dependencies": {
+    "electron-store": "^8.1.0",
+    "keytar": "^7.9.0",
+    "node-fetch": "^2.6.7",
+    "uuid": "^9.0.0",
+    "yaml": "^2.3.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^25.0.0",
+    "electron-builder": "^24.6.3"
+  },
+  "build": {
+    "appId": "com.example.nebula",
+    "productName": "Nebula",
+    "files": [
+      "main.js",
+      "preload.js",
+      "auth-service.js",
+      "auth-launch-service.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets"
+    }
+  }
+}
